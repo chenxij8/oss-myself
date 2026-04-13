@@ -437,8 +437,8 @@ MIT License
 
 ## 联系方式
 
-For questions or support, please contact: support@example.com
+For questions or support, please contact: chenxij_jhy@163.com
 
 ---
 
-**最后更新**: 2024年7月
+**最后更新**: 2026年4月
