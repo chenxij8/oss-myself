@@ -41,6 +41,14 @@ class HttpClient {
       response => {
         const data = response.data as ApiResponse
         
+        // 检查响应数据是否有效（验证是否为预期的JSON格式）
+        if (!data || typeof data !== 'object' || !('code' in data)) {
+          console.error('服务器返回了非API格式的数据，状态码:', response.status)
+          console.error('响应数据:', response.data)
+          uni.showToast({ title: '服务器数据格式异常（请检查后端是否正常运行）', icon: 'error' })
+          return Promise.reject(new Error('Invalid API response format'))
+        }
+        
         // 根据业务码判断
         if (data.code === 0) {
           return data
@@ -59,7 +67,11 @@ class HttpClient {
         }
       },
       error => {
-        uni.showToast({ title: '网络请求异常', icon: 'error' })
+        console.error('请求失败:', error.config?.url, error)
+        const msg = error.response?.status === 404 
+          ? '请求的API接口不存在（后端可能未启动或代理配置有误）'
+          : error.message || '网络请求异常'
+        uni.showToast({ title: msg, icon: 'error' })
         return Promise.reject(error)
       }
     )

@@ -2,7 +2,6 @@ package com.oss.file.common.util;
 
 import io.jsonwebtoken.Claims;
 import io.jsonwebtoken.Jwts;
-import io.jsonwebtoken.SignatureAlgorithm;
 import io.jsonwebtoken.io.Decoders;
 import io.jsonwebtoken.security.Keys;
 import org.springframework.beans.factory.annotation.Value;
@@ -74,11 +73,11 @@ public class JwtUtil {
         Date expiryDate = new Date(now.getTime() + expirationMillis);
 
         return Jwts.builder()
-                .setClaims(claims)
-                .setSubject(subject)
-                .setIssuedAt(now)
-                .setExpiration(expiryDate)
-                .signWith(getSigningKey(), SignatureAlgorithm.HS256)
+                .claims(claims)
+                .subject(subject)
+                .issuedAt(now)
+                .expiration(expiryDate)
+                .signWith(getSigningKey())
                 .compact();
     }
 
@@ -89,12 +88,14 @@ public class JwtUtil {
      */
     public Claims getClaimsFromToken(String token) {
         try {
-            return Jwts.parserBuilder()
-                    .setSigningKey(getSigningKey())
+            return Jwts.parser()
+                    .verifyWith(getSigningKey()) // 注意这里改成了 verifyWith
                     .build()
-                    .parseClaimsJws(token)
-                    .getBody();
+                    .parseSignedClaims(token)
+                    .getPayload(); // 0.12.x 使用 getPayload() 代替 getBody()
         } catch (Exception e) {
+            // 建议在开发阶段打印异常，方便排查是过期还是签名错误
+            // e.printStackTrace();
             return null;
         }
     }
@@ -141,12 +142,16 @@ public class JwtUtil {
      */
     public Boolean validateToken(String token) {
         try {
-            Jwts.parserBuilder()
-                    .setSigningKey(getSigningKey())
+            Jwts.parser()
+                    .verifyWith(getSigningKey()) // 解析校验时使用 verifyWith
                     .build()
-                    .parseClaimsJws(token);
+                    .parseSignedClaims(token);
+
+            // 如果 parseSignedClaims 没有抛出异常，说明签名合法
+            // 注意：新版本中 parse 过程通常已经包含了过期校验
             return !isTokenExpired(token);
         } catch (Exception e) {
+            // 签名不匹配、Token 损坏、或者过期（如果上面没写的话）都会进到这里
             return false;
         }
     }

@@ -1,0 +1,46 @@
+{
+	"pages": [
+		{
+			"path": "pages/index/index",
+			"style": {
+				"navigationBarTitleText": "首页",
+				"navigationBarBackgroundColor": "#ffffff",
+				"navigationBarTextStyle": "black"
+			}
+		},
+		{
+			"path": "pages/login/login",
+			"style": {
+				"navigationBarTitleText": "登录",
+				"navigationBarBackgroundColor": "#ffffff",
+				"navigationBarTextStyle": "black"
+			}
+		},
+		{
+			"path": "pages/file/list",
+			"style": {
+				"navigationBarTitleText": "文件列表",
+				"navigationBarBackgroundColor": "#ffffff",
+				"navigationBarTextStyle": "black"
+			}
+		},
+		{
+			"path": "pages/share/config",
+			"style": {
+				"navigationBarTitleText": "分享设置",
+				"navigationBarBackgroundColor": "#ffffff",
+				"navigationBarTextStyle": "black"
+			}
+		}
+	],
+	"globalStyle": {
+		"navigationBarTextStyle": "black",
+		"navigationBarTitleText": "文件共享系统",
+		"navigationBarBackgroundColor": "#f8f8f8",
+		"backgroundColor": "#ffffff"
+	},
+	"easycom": {
+		"autoscan": true,
+		"custom": {}
+	}
+}
