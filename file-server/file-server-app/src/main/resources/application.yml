@@ -59,7 +59,7 @@ jwt:
 # 文件存储配置
 file:
   storage:
-    path: D:/file-storage  # Windows 路径示例，Linux 改为 /data/file-storage
+    path: C:/IT  # Windows 路径示例，Linux 改为 /data/file-storage
 
 # 服务器配置
 server:

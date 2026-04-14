@@ -17,6 +17,7 @@ import org.springframework.web.multipart.MultipartFile;
 import org.springframework.core.io.InputStreamResource;
 
 import java.io.File;
+import java.util.List;
 import java.io.FileInputStream;
 import java.io.IOException;
 import java.nio.file.Paths;
@@ -196,6 +197,26 @@ public class FileController {
             return ResponseEntity.badRequest().body(ApiResponse.fail(e.getMessage()));
         } catch (Exception e) {
             log.error("删除文件异常", e);
+            return ResponseEntity.internalServerError().body(ApiResponse.error());
+        }
+    }
+
+    /**
+     * 获取用户文件列表
+     * @param authentication 认证信息
+     * @return 文件列表
+     */
+    @GetMapping
+    public ResponseEntity<ApiResponse<List<FileInfo>>> getFileList(
+            Authentication authentication) {
+        try {
+            String userId = (String) authentication.getPrincipal();
+            List<FileInfo> fileList = fileInfoService.getUserFiles(Long.parseLong(userId));
+
+            log.info("获取用户文件列表，用户ID: {}, 文件数量: {}", userId, fileList.size());
+            return ResponseEntity.ok(ApiResponse.success(fileList));
+        } catch (Exception e) {
+            log.error("获取文件列表异常", e);
             return ResponseEntity.internalServerError().body(ApiResponse.error());
         }
     }

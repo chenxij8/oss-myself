@@ -95,7 +95,7 @@
           <text class="nav-icon">📁</text>
           <text class="nav-text">文件管理</text>
         </view>
-        <view class="nav-item" @click="navigateTo('/pages/share/config')">
+        <view class="nav-item" @click="navigateTo('/pages/share/share')">
           <text class="nav-icon">🔗</text>
           <text class="nav-text">分享配置</text>
         </view>

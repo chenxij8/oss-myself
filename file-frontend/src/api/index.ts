@@ -43,6 +43,13 @@ export const getFileInfo = (fileId: number) => {
 }
 
 /**
+ * 获取用户文件列表
+ */
+export const getFileList = () => {
+  return http.get('/files')
+}
+
+/**
  * 删除文件
  */
 export const deleteFile = (fileId: number) => {

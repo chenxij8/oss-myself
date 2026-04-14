@@ -61,12 +61,13 @@
 
 <script setup lang="ts">
 import { ref, onMounted } from 'vue'
-import { uploadFile, deleteFile } from '@/api/index'
+import { uploadFile, deleteFile, getFileList } from '@/api/index'
 import dayjs from 'dayjs'
 
 // 文件列表
 const fileList = ref<any[]>([])
 const uploadProgress = ref(0)
+const listLoading = ref(false)
 
 /**
  * 选择文件
@@ -127,7 +128,7 @@ const handleFileUpload = async (filePath: string) => {
  */
 const handleShare = (fileId: number) => {
   uni.navigateTo({
-    url: `/pages/share/config?fileId=${fileId}`
+    url: `/pages/share/share?fileId=${fileId}`
   })
 }
 
@@ -179,8 +180,28 @@ const formatTime = (timestamp: string) => {
  * 组件挂载
  */
 onMounted(() => {
-  // 这里实际应该调用 API 获取文件列表
+  loadFileList()
 })
+
+/**
+ * 加载文件列表
+ */
+const loadFileList = async () => {
+  try {
+    listLoading.value = true
+    const response = await getFileList()
+    
+    if (response.code === 0) {
+      fileList.value = response.data || []
+    } else {
+      uni.showToast({ title: response.message || '获取文件列表失败', icon: 'error' })
+    }
+  } catch (error: any) {
+    uni.showToast({ title: error.message || '获取文件列表失败', icon: 'error' })
+  } finally {
+    listLoading.value = false
+  }
+}
 </script>
 
 <style scoped>

@@ -6,6 +6,7 @@ import com.oss.file.system.entity.FileInfo;
 import org.springframework.web.multipart.MultipartFile;
 
 import java.io.IOException;
+import java.util.List;
 
 /**
  * 文件业务接口
@@ -44,4 +45,11 @@ public interface FileInfoService extends IService<FileInfo> {
      * @return 文件信息
      */
     FileInfo getFileDetail(Long fileId);
+
+    /**
+     * 获取用户上传的文件列表
+     * @param userId 用户ID
+     * @return 文件列表
+     */
+    List<FileInfo> getUserFiles(Long userId);
 }

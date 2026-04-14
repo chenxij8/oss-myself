@@ -77,7 +77,7 @@ public class SecurityConfig {
                 .authorizeHttpRequests(authz -> authz
                         // 公开接口
                         .requestMatchers("/api/auth/login", "/api/auth/register").permitAll()
-                        .requestMatchers("/api/share/download/**", "/api/share/info/**").permitAll()
+                        .requestMatchers("/api/shares/downloads/**", "/api/shares/info/**").permitAll()
 
                         // 文件管理接口
                         .requestMatchers(HttpMethod.POST, "/api/files/upload", "/api/files/check").authenticated()

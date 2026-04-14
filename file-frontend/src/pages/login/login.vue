@@ -94,9 +94,9 @@ const handleLogin = async () => {
       // 显示成功提示
       uni.showToast({ title: '登录成功', icon: 'success', duration: 1500 })
 
-      // 延迟跳转到首页（tabBar 页面使用 switchTab）
+      // 延迟跳转到首页
       setTimeout(() => {
-        uni.switchTab({
+        uni.reLaunch({
           url: '/pages/index/index'
         })
       }, 1500)

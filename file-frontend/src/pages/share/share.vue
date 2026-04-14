@@ -5,6 +5,45 @@
       <text class="title">分享配置</text>
     </view>
 
+    <!-- 文件选择弹窗 -->
+    <view v-if="showFileModal" class="file-modal">
+      <view class="modal-mask" @click="showFileModal = false"></view>
+      <view class="modal-content">
+        <view class="modal-header">
+          <text class="modal-title">选择文件</text>
+          <text class="modal-close" @click="showFileModal = false">×</text>
+        </view>
+        
+        <view class="modal-body">
+          <view v-if="fileListLoading" class="loading-state">
+            <text>加载中...</text>
+          </view>
+          
+          <view v-else-if="fileList.length === 0" class="empty-state">
+            <text class="empty-icon">📭</text>
+            <text class="empty-text">暂无已上传文件</text>
+            <text class="empty-tip">请先上传文件</text>
+          </view>
+          
+          <scroll-view v-else scroll-y class="file-scroll">
+            <view 
+              v-for="file in fileList" 
+              :key="file.id"
+              :class="['file-item', { selected: selectedFileId === file.id }]"
+              @click="selectFile(file)"
+            >
+              <view class="file-icon">📄</view>
+              <view class="file-info">
+                <text class="file-name">{{ file.fileName }}</text>
+                <text class="file-meta">{{ formatFileSize(file.fileSize) }} · {{ formatTime(file.uploadTime) }}</text>
+              </view>
+              <view v-if="selectedFileId === file.id" class="check-icon">✓</view>
+            </view>
+          </scroll-view>
+        </view>
+      </view>
+    </view>
+
     <!-- 配置表单 -->
     <view class="form-section">
       <!-- 文件选择 -->
@@ -124,14 +163,75 @@
 </template>
 
 <script setup lang="ts">
-import { ref } from 'vue'
-import { createShare } from '@/api/index'
+import { ref, onMounted } from 'vue'
+import { createShare, getFileList, getFileInfo } from '@/api/index'
 import dayjs from 'dayjs'
 
 // 表单数据
 const selectedFileId = ref<number | null>(null)
 const selectedFileName = ref('')
 const loading = ref(false)
+
+// 文件列表弹窗
+const showFileModal = ref(false)
+const fileList = ref<any[]>([])
+const fileListLoading = ref(false)
+
+/**
+ * 选择文件
+ */
+const chooseFile = () => {
+  uni.showActionSheet({
+    itemList: ['从最近文件选择', '从文件系统选择'],
+    success: (res) => {
+      if (res.tapIndex === 0) {
+        // 从最近文件选择
+        loadFileList()
+      } else if (res.tapIndex === 1) {
+        // 从文件系统选择
+        uni.chooseFile({
+          count: 1,
+          type: 'file',
+          success: (chooseRes) => {
+            if (chooseRes.tempFilePaths && chooseRes.tempFilePaths.length > 0) {
+              uni.showToast({ title: '请先上传此文件', icon: 'warning' })
+            }
+          }
+        })
+      }
+    }
+  })
+}
+
+/**
+ * 加载文件列表
+ */
+const loadFileList = async () => {
+  try {
+    fileListLoading.value = true
+    const response = await getFileList()
+    
+    if (response.code === 0) {
+      fileList.value = response.data || []
+      showFileModal.value = true
+    } else {
+      uni.showToast({ title: response.message || '获取文件列表失败', icon: 'error' })
+    }
+  } catch (error: any) {
+    uni.showToast({ title: error.message || '获取文件列表失败', icon: 'error' })
+  } finally {
+    fileListLoading.value = false
+  }
+}
+
+/**
+ * 选择文件
+ */
+const selectFile = (file: any) => {
+  selectedFileId.value = file.id
+  selectedFileName.value = file.fileName
+  showFileModal.value = false
+}
 
 // 过期时间选项
 const expireOptions = [
@@ -155,21 +255,6 @@ const shareDownloadInfo = ref('')
 const shareCreateTime = ref('')
 
 /**
- * 选择文件
- */
-const chooseFile = () => {
-  uni.showActionSheet({
-    itemList: ['从文件系统选择', '从最近文件选择'],
-    success: (res) => {
-      if (res.tapIndex === 0) {
-        // 实际项目中实现文件选择逻辑
-        uni.showToast({ title: '请先上传文件', icon: 'warning' })
-      }
-    }
-  })
-}
-
-/**
  * 生成分享链接
  */
 const generateShare = async () => {
@@ -182,16 +267,15 @@ const generateShare = async () => {
     loading.value = true
 
     // 计算过期时间
-    let expireTime: string | undefined = undefined
-    if (expireTime !== null) {
-      const hours = expireTime.value
-      expireTime = dayjs().add(hours, 'hour').format('YYYY-MM-DD HH:mm:ss')
+    let expireAt: string | undefined = undefined
+    if (expireTime.value !== null) {
+      expireAt = dayjs().add(expireTime.value, 'hour').format('YYYY-MM-DD HH:mm:ss')
     }
 
     // 调用 API
     const response = await createShare(
       selectedFileId.value,
-      expireTime,
+      expireAt,
       enableDownloadLimit.value ? maxDownloads.value : undefined
     )
 
@@ -218,6 +302,8 @@ const generateShare = async () => {
       }
 
       uni.showToast({ title: '分享链接生成成功', icon: 'success' })
+    } else {
+      uni.showToast({ title: response.message || '生成失败', icon: 'error' })
     }
   } catch (error: any) {
     uni.showToast({ title: error.message || '生成失败', icon: 'error' })
@@ -254,13 +340,6 @@ const shareAgain = () => {
   shareToken.value = ''
   generateShare()
 }
-
-/**
- * 格式化时间
- */
-const formatTime = (timestamp: string) => {
-  return dayjs(timestamp).format('YYYY-MM-DD HH:mm:ss')
-}
 </script>
 
 <style scoped>
@@ -269,6 +348,140 @@ const formatTime = (timestamp: string) => {
   background-color: #f5f7fa;
   min-height: 100vh;
   padding-bottom: 20px;
+}
+
+/* 文件选择弹窗样式 */
+.file-modal {
+  position: fixed;
+  top: 0;
+  left: 0;
+  right: 0;
+  bottom: 0;
+  z-index: 999;
+  display: flex;
+  align-items: flex-end;
+}
+
+.modal-mask {
+  position: absolute;
+  top: 0;
+  left: 0;
+  right: 0;
+  bottom: 0;
+  background-color: rgba(0, 0, 0, 0.5);
+}
+
+.modal-content {
+  position: relative;
+  width: 100%;
+  max-height: 70vh;
+  background-color: white;
+  border-radius: 16px 16px 0 0;
+  overflow: hidden;
+}
+
+.modal-header {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  padding: 16px 20px;
+  border-bottom: 1px solid #eee;
+}
+
+.modal-title {
+  font-size: 16px;
+  font-weight: bold;
+  color: #333;
+}
+
+.modal-close {
+  font-size: 24px;
+  color: #999;
+  padding: 0 8px;
+}
+
+.modal-body {
+  max-height: 60vh;
+  overflow: hidden;
+}
+
+.loading-state,
+.empty-state {
+  padding: 60px 20px;
+  text-align: center;
+}
+
+.empty-icon {
+  display: block;
+  font-size: 48px;
+  margin-bottom: 12px;
+}
+
+.empty-text {
+  display: block;
+  font-size: 14px;
+  color: #666;
+  margin-bottom: 8px;
+}
+
+.empty-tip {
+  display: block;
+  font-size: 12px;
+  color: #999;
+}
+
+.file-scroll {
+  max-height: 60vh;
+  padding: 8px 0;
+}
+
+.file-item {
+  display: flex;
+  align-items: center;
+  padding: 12px 20px;
+  border-bottom: 1px solid #f5f5f5;
+  transition: background-color 0.2s;
+}
+
+.file-item:active {
+  background-color: #f5f5f5;
+}
+
+.file-item.selected {
+  background-color: #f0f4ff;
+}
+
+.file-icon {
+  font-size: 32px;
+  margin-right: 12px;
+}
+
+.file-info {
+  flex: 1;
+  overflow: hidden;
+}
+
+.file-name {
+  display: block;
+  font-size: 14px;
+  color: #333;
+  margin-bottom: 4px;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.file-meta {
+  display: block;
+  font-size: 12px;
+  color: #999;
+}
+
+.check-icon {
+  font-size: 18px;
+  color: #667eea;
+  font-weight: bold;
+  margin-left: 12px;
 }
 
 .top-bar {
@@ -311,7 +524,7 @@ const formatTime = (timestamp: string) => {
   color: #666;
   display: flex;
   align-items: center;
-  gap 4px;
+  gap: 4px;
 }
 
 .select-file {

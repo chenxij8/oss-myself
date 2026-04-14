@@ -20,6 +20,7 @@ import java.nio.file.Path;
 import java.nio.file.Paths;
 import java.time.LocalDateTime;
 import java.time.format.DateTimeFormatter;
+import java.util.List;
 
 /**
  * 文件业务实现类
@@ -171,6 +172,18 @@ public class FileInfoServiceImpl extends ServiceImpl<FileInfoMapper, FileInfo> i
     @Override
     public FileInfo getFileDetail(Long fileId) {
         return baseMapper.selectById(fileId);
+    }
+
+    /**
+     * 获取用户上传的文件列表
+     */
+    @Override
+    public List<FileInfo> getUserFiles(Long userId) {
+        LambdaQueryWrapper<FileInfo> queryWrapper = new LambdaQueryWrapper<>();
+        queryWrapper.eq(FileInfo::getUploadUserId, userId)
+                    .eq(FileInfo::getIsDeleted, 0)
+                    .orderByDesc(FileInfo::getUploadTime);
+        return baseMapper.selectList(queryWrapper);
     }
 
     /**

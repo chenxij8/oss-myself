@@ -255,7 +255,7 @@ public class FileShareServiceImpl extends ServiceImpl<FileShareMapper, FileShare
         response.setCreateTime(fileShare.getCreateTime());
         
         // 生成分享URL（假设前端访问地址）
-        response.setShareUrl("/api/share/download/" + fileShare.getShareToken());
+        response.setShareUrl("/api/shares/download/" + fileShare.getShareToken());
         
         return response;
     }
