@@ -68,9 +68,16 @@ class HttpClient {
       },
       error => {
         console.error('请求失败:', error.config?.url, error)
-        const msg = error.response?.status === 404 
-          ? '请求的API接口不存在（后端可能未启动或代理配置有误）'
-          : error.message || '网络请求异常'
+        // 尝试获取后端返回的错误信息
+        const responseData = error.response?.data
+        let msg = error.message || '网络请求异常'
+        
+        if (error.response?.status === 400 && responseData?.message) {
+          msg = responseData.message
+        } else if (error.response?.status === 404) {
+          msg = '请求的API接口不存在（后端可能未启动或代理配置有误）'
+        }
+        
         uni.showToast({ title: msg, icon: 'error' })
         return Promise.reject(error)
       }

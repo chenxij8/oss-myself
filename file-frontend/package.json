@@ -2,22 +2,27 @@
   "name": "file-frontend",
   "version": "1.0.0",
   "description": "Enterprise File Sharing Management System - Frontend",
-  "type": "module",
   "scripts": {
-    "dev": "vite",
-    "build": "vite build",
-    "preview": "vite preview"
+    "dev:h5": "set UNI_INPUT_DIR=./src && uni --platform h5",
+    "build:h5": "set UNI_INPUT_DIR=./src && uni build --platform h5",
+    "dev:app": "set UNI_INPUT_DIR=./src && uni --platform app",
+    "build:app": "set UNI_INPUT_DIR=./src && uni build --platform app"
   },
   "dependencies": {
+    "@dcloudio/uni-app": "3.0.0-alpha-5000720260327001",
+    "@dcloudio/uni-components": "3.0.0-alpha-5000720260327001",
+    "@dcloudio/uni-h5": "3.0.0-alpha-5000720260327001",
+    "@dcloudio/uni-app-plus": "3.0.0-alpha-5000720260327001",
     "axios": "^1.15.0",
     "dayjs": "^1.11.20",
     "pinia": "^2.1.7",
-    "pinia-plugin-persistedstate": "^4.7.1",
-    "vue": "^3.3.8"
+    "pinia-plugin-persistedstate": "^3.2.3",
+    "vue": "^3.3.8",
+    "vue-router": "^4.2.5"
   },
   "devDependencies": {
-    "@dcloudio/uni-app": "^3.0.0-alpha.0",
-    "@dcloudio/vite-plugin-uni": "^0.1.0",
+    "@dcloudio/types": "^3.4.10",
+    "@dcloudio/vite-plugin-uni": "3.0.0-alpha-5000720260327001",
     "@vitejs/plugin-vue": "^5.0.1",
     "typescript": "^5.3.3",
     "vite": "^5.0.10",

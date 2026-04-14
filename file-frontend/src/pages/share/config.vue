@@ -125,7 +125,7 @@
 
 <script setup lang="ts">
 import { ref } from 'vue'
-import { createShare } from '@/api'
+import { createShare } from '@/api/index'
 import dayjs from 'dayjs'
 
 // 表单数据

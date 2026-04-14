@@ -106,8 +106,12 @@
 
 <script setup lang="ts">
 import { ref, onMounted, onUnmounted } from 'vue'
-import { getSystemStatus } from '@/api'
+import { getSystemStatus } from '@/api/index'
+import { useUserStore } from '@/stores/user'
 import dayjs from 'dayjs'
+
+// 用户状态
+const userStore = useUserStore()
 
 // 监控数据
 const monitorData = ref({
@@ -133,6 +137,11 @@ let refreshInterval: any = null
  * 获取监控数据
  */
 const fetchMonitorData = async () => {
+  // 未登录时不请求数据
+  if (!userStore.isLoggedIn()) {
+    return
+  }
+  
   try {
     loading.value = true
     const response = await getSystemStatus()
@@ -184,13 +193,15 @@ const navigateTo = (url: string) => {
  * 组件挂载
  */
 onMounted(() => {
-  // 初始化获取数据
-  fetchMonitorData()
-  
-  // 每30秒自动刷新一次
-  refreshInterval = setInterval(() => {
+  // 已登录时才获取数据和启动定时刷新
+  if (userStore.isLoggedIn()) {
     fetchMonitorData()
-  }, 30000)
+    
+    // 每30秒自动刷新一次
+    refreshInterval = setInterval(() => {
+      fetchMonitorData()
+    }, 30000)
+  }
 })
 
 /**

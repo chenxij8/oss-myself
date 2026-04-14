@@ -61,7 +61,7 @@
 
 <script setup lang="ts">
 import { ref, onMounted } from 'vue'
-import { uploadFile, deleteFile } from '@/api'
+import { uploadFile, deleteFile } from '@/api/index'
 import dayjs from 'dayjs'
 
 // 文件列表

@@ -1,31 +1,24 @@
 import { defineConfig } from 'vite'
-import vue from '@vitejs/plugin-vue'
 import uni from '@dcloudio/vite-plugin-uni'
-import { resolve } from 'path'
+import { fileURLToPath, URL } from 'node:url'
 
 // https://vitejs.dev/config/
 export default defineConfig({
   plugins: [
-    vue(),
     uni(),
   ],
   resolve: {
     alias: {
-      '@': resolve(__dirname, './'),
+      '@': fileURLToPath(new URL('./src', import.meta.url)),
     },
   },
   server: {
     port: 5173,
     proxy: {
-      '/api': {
+      '^/api/': {
         target: 'http://localhost:8080',
         changeOrigin: true,
-        rewrite: (path) => path,
       },
     },
-  },
-  build: {
-    target: 'esnext',
-    minify: 'terser',
   },
 })

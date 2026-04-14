@@ -5,10 +5,17 @@ import { onLaunch } from '@dcloudio/uni-app'
 onLaunch(() => {
   console.log('App Launch')
   
-  // 检查登录状态
+  // 获取当前页面路径
+  const pages = getCurrentPages()
+  const currentPage = pages.length > 0 ? pages[pages.length - 1] : null
+  const currentPath = currentPage?.route || ''
+  
+  // 检查登录状态（登录页不需要检查）
   const token = uni.getStorageSync('access_token')
-  if (!token) {
-    // 使用 reLaunch 确保清空路由栈到登录页
+  const isLoginPage = currentPath.includes('login')
+  
+  if (!token && !isLoginPage) {
+    // 未登录且不在登录页，跳转到登录页
     uni.reLaunch({
       url: '/pages/login/login'
     })

@@ -5,7 +5,7 @@
       <view class="login-subtitle">企业级文件安全分享平台</view>
 
       <!-- 登录表单 -->
-      <form @submit.prevent="handleLogin">
+      <form @submit="handleLogin">
         <!-- 用户名输入 -->
         <view class="form-group">
           <view class="form-label">用户名</view>
@@ -33,7 +33,7 @@
         </view>
 
         <!-- 登录按钮 -->
-        <button class="login-btn" :disabled="loading">
+        <button class="login-btn" form-type="submit" :disabled="loading">
           {{ loading ? '登录中...' : '登录' }}
         </button>
       </form>
@@ -50,7 +50,7 @@
 
 <script setup lang="ts">
 import { ref } from 'vue'
-import { login } from '@/api'
+import { login } from '@/api/index'
 import { useUserStore } from '@/stores/user'
 
 const userStore = useUserStore()
@@ -94,9 +94,9 @@ const handleLogin = async () => {
       // 显示成功提示
       uni.showToast({ title: '登录成功', icon: 'success', duration: 1500 })
 
-      // 延迟跳转到首页
+      // 延迟跳转到首页（tabBar 页面使用 switchTab）
       setTimeout(() => {
-        uni.navigateTo({
+        uni.switchTab({
           url: '/pages/index/index'
         })
       }, 1500)
