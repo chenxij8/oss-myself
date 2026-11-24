@@ -163,6 +163,7 @@ import { onLoad } from '@dcloudio/uni-app'
 import { createShare, getFileList } from '@/api/index'
 import type { FileInfo, FileShareResponse } from '@/api/index'
 import { API_BASE_URL } from '@/api/http'
+import { pickFiles } from '@/utils/pickFiles'
 import dayjs from 'dayjs'
 
 // 表单数据
@@ -186,16 +187,12 @@ const chooseFile = () => {
         // 从最近文件选择
         loadFileList()
       } else if (res.tapIndex === 1) {
-        // 从文件系统选择
-        uni.chooseFile({
-          count: 1,
-          type: 'file',
-          success: (chooseRes) => {
-            if (chooseRes.tempFilePaths && chooseRes.tempFilePaths.length > 0) {
-              uni.showToast({ title: '请先上传此文件', icon: 'warning' })
-            }
-          }
-        })
+        // 从文件系统选择（H5 无 uni.chooseFile，走跨端选择器）
+        pickFiles({ count: 1, accept: '*/*', nativeApi: 'file' })
+          .then(picked => {
+            if (picked.length) uni.showToast({ title: '请先上传此文件', icon: 'warning' })
+          })
+          .catch((e: any) => uni.showToast({ title: e?.message || '选择文件失败', icon: 'none' }))
       }
     }
   })

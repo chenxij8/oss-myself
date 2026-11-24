@@ -59,10 +59,15 @@ jwt:
   secret: ${JWT_SECRET:FileServerSecurityKeyForJWTTokenGenerationAndValidation2024021201}
   expiration: 86400000
 
-# 文件存储配置
+# 文件存储配置（文件托管，与图床物理分离）
 file:
   storage:
     path: ${FILE_STORAGE_PATH:C:/IT}
+
+# 图床存储配置：独立目录，图片/视频与文件托管不共享空间
+gallery:
+  storage:
+    path: ${GALLERY_STORAGE_PATH:C:/IT-Gallery}
 
 # 应用自定义配置
 app:

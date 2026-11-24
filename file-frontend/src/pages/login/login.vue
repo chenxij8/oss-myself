@@ -38,6 +38,9 @@
         </button>
       </form>
 
+      <!-- 注册入口：注册后默认进入用户端 -->
+      <view class="register-entry" @click="goRegister">还没有账号？立即注册 →</view>
+
       <!-- 提示信息：仅开发环境展示，避免生产环境泄露默认凭据 -->
       <view v-if="showDemoTips" class="login-tips">
         <view class="tips-title">测试账号</view>
@@ -102,6 +105,8 @@ const handleLogin = async () => {
     loading.value = false
   }
 }
+
+const goRegister = () => uni.navigateTo({ url: '/pages/login/register' })
 </script>
 
 <style scoped>
@@ -201,8 +206,16 @@ const handleLogin = async () => {
   cursor: not-allowed;
 }
 
+.register-entry {
+  margin-top: 18px;
+  text-align: center;
+  color: #667eea;
+  font-size: 14px;
+  padding: 8px;
+}
+
 .login-tips {
-  margin-top: 30px;
+  margin-top: 16px;
   padding: 15px;
   background: #f5f5f5;
   border-radius: 6px;

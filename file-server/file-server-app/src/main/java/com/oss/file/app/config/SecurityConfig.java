@@ -72,6 +72,11 @@ public class SecurityConfig {
                 // 3. 设置异常处理
                 .exceptionHandling(exception -> exception
                         .authenticationEntryPoint(jwtAuthenticationEntryPoint)
+                        .accessDeniedHandler((request, response, ex) -> {
+                            response.setStatus(403);
+                            response.setContentType("application/json;charset=UTF-8");
+                            response.getWriter().write("{\"code\":403,\"message\":\"无权限访问此资源\"}");
+                        })
                 )
 
                 // 4. 设置会话管理为无状态 (不再使用 .and())
@@ -85,6 +90,11 @@ public class SecurityConfig {
                         .requestMatchers("/api/auth/login", "/api/auth/register").permitAll()
                         // 注意：Controller 实际映射为 /download/{token}（单数），必须与此处一致
                         .requestMatchers("/api/shares/download/**", "/api/shares/info/**").permitAll()
+                        // 图床内联预览/原始流：外链展示需要匿名可访问（返回文件字节，不含任何用户信息）
+                        .requestMatchers("/api/gallery/preview/**", "/api/gallery/raw/**").permitAll()
+
+                        // 管理端接口：仅 ADMIN，方法级 @PreAuthorize 二次校验
+                        .requestMatchers("/api/admin/**").hasRole("ADMIN")
 
                         // 文件管理接口
                         .requestMatchers(HttpMethod.POST, "/api/files/upload", "/api/files/check").authenticated()

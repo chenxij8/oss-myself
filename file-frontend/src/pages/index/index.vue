@@ -8,8 +8,27 @@
       </view>
     </view>
 
-    <!-- 监控数据卡片 -->
+    <!-- 用户端功能入口：所有登录用户可见 -->
     <view class="content">
+      <view class="section-title">用户端功能</view>
+      <view class="quick-nav entry-nav">
+        <view class="nav-item" @click="navigateTo('/pages/file/list')">
+          <text class="nav-icon">📁</text>
+          <text class="nav-text">文件管理</text>
+        </view>
+        <view class="nav-item" @click="navigateTo('/pages/gallery/gallery')">
+          <text class="nav-icon">🖼</text>
+          <text class="nav-text">图床</text>
+        </view>
+        <view class="nav-item" @click="navigateTo('/pages/share/share')">
+          <text class="nav-icon">🔗</text>
+          <text class="nav-text">我的分享</text>
+        </view>
+      </view>
+
+      <!-- 监控数据：仅管理员可见 -->
+      <view v-if="userStore.isAdmin()" class="admin-section">
+      <view class="section-title">系统监控（管理员）</view>
       <!-- CPU 监控 -->
       <view class="card">
         <view class="card-header">
@@ -89,16 +108,6 @@
         </view>
       </view>
 
-      <!-- 快捷导航 -->
-      <view class="quick-nav">
-        <view class="nav-item" @click="navigateTo('/pages/file/list')">
-          <text class="nav-icon">📁</text>
-          <text class="nav-text">文件管理</text>
-        </view>
-        <view class="nav-item" @click="navigateTo('/pages/share/share')">
-          <text class="nav-icon">🔗</text>
-          <text class="nav-text">分享配置</text>
-        </view>
       </view>
     </view>
   </view>
@@ -130,7 +139,8 @@ let fetching = false
 
 /** 获取监控数据（进行中标志位防止定时刷新与手动刷新并发） */
 const fetchMonitorData = async () => {
-  if (!userStore.isLoggedIn() || fetching) {
+  // 监控数据仅管理员可见，普通用户不发起请求
+  if (!userStore.isLoggedIn() || !userStore.isAdmin() || fetching) {
     return
   }
   fetching = true
@@ -156,7 +166,7 @@ const refreshData = () => {
 
 const startPolling = () => {
   stopPolling()
-  if (userStore.isLoggedIn()) {
+  if (userStore.isLoggedIn() && userStore.isAdmin()) {
     refreshInterval = setInterval(fetchMonitorData, 30000)
   }
 }
@@ -239,6 +249,23 @@ onHide(() => {
 
 .content {
   padding: 20px;
+}
+
+.section-title {
+  font-size: 15px;
+  font-weight: bold;
+  color: #333;
+  margin: 4px 0 12px;
+  padding-left: 8px;
+  border-left: 3px solid #667eea;
+}
+
+.entry-nav {
+  margin-bottom: 24px;
+}
+
+.admin-section {
+  padding-top: 4px;
 }
 
 .card {

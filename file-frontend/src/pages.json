@@ -17,6 +17,22 @@
 			}
 		},
 		{
+			"path": "pages/login/register",
+			"style": {
+				"navigationBarTitleText": "注册",
+				"navigationBarBackgroundColor": "#ffffff",
+				"navigationBarTextStyle": "black"
+			}
+		},
+		{
+			"path": "pages/gallery/gallery",
+			"style": {
+				"navigationBarTitleText": "图床",
+				"navigationBarBackgroundColor": "#ffffff",
+				"navigationBarTextStyle": "black"
+			}
+		},
+		{
 			"path": "pages/file/list",
 			"style": {
 				"navigationBarTitleText": "文件列表",

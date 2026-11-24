@@ -62,6 +62,29 @@ CREATE TABLE IF NOT EXISTS `file_share` (
   CONSTRAINT `fk_share_user_id` FOREIGN KEY (`share_user_id`) REFERENCES `sys_user` (`id`)
 ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci COMMENT='文件分享表';
 
+-- 图床素材表（与 file_info 文件托管完全分离）
+CREATE TABLE IF NOT EXISTS `gallery_asset` (
+  `id` bigint NOT NULL AUTO_INCREMENT COMMENT '素材ID',
+  `owner_user_id` bigint NOT NULL COMMENT '所属用户ID',
+  `file_hash` varchar(128) NOT NULL COMMENT 'SHA-256哈希',
+  `file_name` varchar(255) NOT NULL COMMENT '原始文件名',
+  `stored_path` varchar(512) NOT NULL COMMENT '物理存储路径',
+  `mime_type` varchar(128) COMMENT '服务端嗅探的真实MIME',
+  `media_type` varchar(16) NOT NULL COMMENT 'IMAGE / VIDEO',
+  `file_size` bigint NOT NULL COMMENT '大小(字节)',
+  `width` int COMMENT '图片宽度',
+  `height` int COMMENT '图片高度',
+  `duration` bigint COMMENT '视频时长(秒)',
+  `is_deleted` tinyint NOT NULL DEFAULT 0 COMMENT '逻辑删除',
+  `delete_time` datetime COMMENT '删除时间',
+  `create_time` datetime NOT NULL DEFAULT CURRENT_TIMESTAMP COMMENT '创建时间',
+  `update_time` datetime NOT NULL DEFAULT CURRENT_TIMESTAMP ON UPDATE CURRENT_TIMESTAMP COMMENT '更新时间',
+  PRIMARY KEY (`id`),
+  UNIQUE KEY `uk_owner_hash` (`owner_user_id`, `file_hash`),
+  KEY `idx_owner_type_time` (`owner_user_id`, `media_type`, `create_time`),
+  CONSTRAINT `fk_gallery_owner` FOREIGN KEY (`owner_user_id`) REFERENCES `sys_user` (`id`)
+) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci COMMENT='图床素材表';
+
 -- 访问日志表
 CREATE TABLE IF NOT EXISTS `sys_log` (
   `id` bigint NOT NULL AUTO_INCREMENT COMMENT '日志ID',

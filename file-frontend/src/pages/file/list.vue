@@ -67,6 +67,7 @@ import { ref } from 'vue'
 import { onShow, onHide } from '@dcloudio/uni-app'
 import { uploadFileByPath, downloadOwnFile, deleteFile, getFileList } from '@/api/index'
 import type { FileInfo } from '@/api/index'
+import { pickFiles, type PickedFile } from '@/utils/pickFiles'
 import dayjs from 'dayjs'
 
 const PAGE_SIZE = 20
@@ -76,25 +77,21 @@ const listLoading = ref(false)
 const currentPage = ref(1)
 const hasMore = ref(true)
 
-/** 选择文件：使用 uni.chooseFile 拿到本地路径，交给原生上传通道 */
-const chooseFile = () => {
-  uni.chooseFile({
-    count: 1,
-    type: 'file',
-    success: res => {
-      const filePath = res.tempFilePaths?.[0]
-      if (filePath) {
-        handleFileUpload(filePath)
-      }
-    }
-  })
+/** 选择文件：H5 用 input，App/小程序用 uni 原生 API */
+const chooseFile = async () => {
+  try {
+    const picked = await pickFiles({ count: 1, accept: '*/*', nativeApi: 'file' })
+    if (picked.length) await handleFileUpload(picked[0])
+  } catch (e: any) {
+    uni.showToast({ title: e?.message || '选择文件失败', icon: 'none' })
+  }
 }
 
-/** 真实上传：直接上传本地文件路径，并展示真实进度 */
-const handleFileUpload = async (filePath: string) => {
+/** 真实上传：直接上传本地文件，并展示真实进度 */
+const handleFileUpload = async (file: PickedFile | string) => {
   try {
     uploadProgress.value = 0
-    const response = await uploadFileByPath(filePath, percent => {
+    const response = await uploadFileByPath(file, percent => {
       uploadProgress.value = percent
     })
     uploadProgress.value = 100
