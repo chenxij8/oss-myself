@@ -38,8 +38,8 @@
         </button>
       </form>
 
-      <!-- 提示信息 -->
-      <view class="login-tips">
+      <!-- 提示信息：仅开发环境展示，避免生产环境泄露默认凭据 -->
+      <view v-if="showDemoTips" class="login-tips">
         <view class="tips-title">测试账号</view>
         <view class="tips-text">用户名: admin</view>
         <view class="tips-text">密码: admin123</view>
@@ -63,6 +63,7 @@ const form = ref({
 
 const showPassword = ref(false)
 const loading = ref(false)
+const showDemoTips = import.meta.env.DEV
 
 /**
  * 处理登录
@@ -86,25 +87,17 @@ const handleLogin = async () => {
     const response = await login(form.value.username, form.value.password)
 
     if (response.code === 0) {
-      // 保存用户信息和 token
-      const loginData = response.data
-      userStore.setUserInfo(loginData)
-      uni.setStorageSync('access_token', loginData.accessToken)
+      // 保存用户信息与 token（store 内部统一写入 uni storage）
+      userStore.setUserInfo(response.data)
 
-      // 显示成功提示
-      uni.showToast({ title: '登录成功', icon: 'success', duration: 1500 })
-
-      // 延迟跳转到首页
+      uni.showToast({ title: '登录成功', icon: 'success', duration: 1000 })
       setTimeout(() => {
-        uni.reLaunch({
-          url: '/pages/index/index'
-        })
-      }, 1500)
-    } else {
-      uni.showToast({ title: response.message || '登录失败', icon: 'error' })
+        uni.reLaunch({ url: '/pages/index/index' })
+      }, 1000)
     }
-  } catch (error: any) {
-    uni.showToast({ title: error.message || '登录失败，请重试', icon: 'error' })
+    // 失败提示由 http 拦截器统一处理，避免重复弹窗
+  } catch {
+    // 错误提示已由拦截器统一处理
   } finally {
     loading.value = false
   }

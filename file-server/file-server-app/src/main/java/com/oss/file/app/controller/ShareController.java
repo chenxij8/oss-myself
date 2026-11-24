@@ -1,5 +1,6 @@
 package com.oss.file.app.controller;
 
+import com.oss.file.app.security.SecurityUtils;
 import com.oss.file.common.exception.BusinessException;
 import com.oss.file.common.response.ApiResponse;
 import com.oss.file.system.dto.FileShareRequest;
@@ -11,17 +12,20 @@ import lombok.extern.slf4j.Slf4j;
 import org.springframework.core.io.InputStreamResource;
 import org.springframework.http.HttpHeaders;
 import org.springframework.http.HttpStatus;
+import org.springframework.http.MediaType;
 import org.springframework.http.ResponseEntity;
 import org.springframework.security.core.Authentication;
 import org.springframework.web.bind.annotation.*;
 
-import java.io.File;
-import java.io.FileInputStream;
 import java.io.IOException;
+import java.nio.file.Files;
+import java.nio.file.Path;
+import java.nio.file.Paths;
+import java.time.ZoneId;
+import java.util.List;
 
 /**
- * 文件分享控制器
- * 处理分享链接的生成、查询、下载等操作
+ * 分享控制器：创建、查询、公开下载、列表、删除。
  */
 @RestController
 @RequestMapping("/api/shares")
@@ -31,22 +35,11 @@ public class ShareController {
     private final FileShareService fileShareService;
     private final FileInfoService fileInfoService;
 
-    /**
-     * 限流配置：每个IP每分钟最多请求次数
-     */
-    private static final int RATE_LIMIT_PER_MINUTE = 60;
-
     public ShareController(FileShareService fileShareService, FileInfoService fileInfoService) {
         this.fileShareService = fileShareService;
         this.fileInfoService = fileInfoService;
     }
 
-    /**
-     * 创建分享链接
-     * @param shareRequest 分享请求（包含文件ID、过期时间、下载次数限制）
-     * @param authentication 认证信息
-     * @return 分享信息
-     */
     @PostMapping
     public ResponseEntity<ApiResponse<FileShareResponse>> createShare(
             @RequestBody FileShareRequest shareRequest,
@@ -55,46 +48,31 @@ public class ShareController {
             if (shareRequest == null || shareRequest.getFileId() == null) {
                 throw new BusinessException("文件ID不能为空");
             }
+            Long userId = SecurityUtils.getUserId(authentication);
+            Long expireTime = shareRequest.getExpireTime() == null ? null
+                    : shareRequest.getExpireTime().atZone(ZoneId.systemDefault()).toInstant().toEpochMilli();
 
-            String userId = (String) authentication.getPrincipal();
-
-            // 转换过期时间为毫秒时间戳
-            Long expireTime = null;
-            if (shareRequest.getExpireTime() != null) {
-                expireTime = shareRequest.getExpireTime().atZone(java.time.ZoneId.systemDefault()).toInstant().toEpochMilli();
-            }
-
-            // 创建分享链接
             FileShareResponse response = fileShareService.createShare(
-                    shareRequest.getFileId(),
-                    Long.parseLong(userId),
-                    expireTime,
-                    shareRequest.getMaxDownloads()
-            );
-
+                    shareRequest.getFileId(), userId, expireTime, shareRequest.getMaxDownloads());
             log.info("分享链接已创建，ShareId: {}, Token: {}", response.getId(), response.getShareToken());
             return ResponseEntity.ok(ApiResponse.success("分享链接创建成功", response));
         } catch (BusinessException e) {
-            return ResponseEntity.badRequest().body(ApiResponse.fail(e.getMessage()));
+            return ResponseEntity.status(e.getCode() == 403 ? HttpStatus.FORBIDDEN : HttpStatus.BAD_REQUEST)
+                    .body(ApiResponse.fail(e.getCode(), e.getMessage()));
         } catch (Exception e) {
             log.error("创建分享链接异常", e);
             return ResponseEntity.internalServerError().body(ApiResponse.error());
         }
     }
 
-    /**
-     * 获取分享信息（公开接口，无需认证）
-     * @param shareToken 分享令牌
-     * @return 分享信息
-     */
+    /** 分享信息（公开） */
     @GetMapping("/info/{shareToken}")
-    public ResponseEntity<ApiResponse<FileShareResponse>> getShareInfo(
-            @PathVariable String shareToken) {
+    public ResponseEntity<ApiResponse<FileShareResponse>> getShareInfo(@PathVariable String shareToken) {
         try {
             FileShareResponse response = fileShareService.getShareInfo(shareToken);
             return ResponseEntity.ok(ApiResponse.success(response));
         } catch (BusinessException e) {
-            return ResponseEntity.badRequest().body(ApiResponse.fail(e.getMessage()));
+            return ResponseEntity.status(HttpStatus.GONE).body(ApiResponse.fail(e.getCode(), e.getMessage()));
         } catch (Exception e) {
             log.error("获取分享信息异常", e);
             return ResponseEntity.internalServerError().body(ApiResponse.error());
@@ -102,57 +80,37 @@ public class ShareController {
     }
 
     /**
-     * 通过分享链接下载文件（公开接口，无需认证）
-     * 采用流式传输，不映射为静态资源
-     * @param shareToken 分享令牌
-     * @return 文件流
+     * 公开下载：一次原子操作完成「校验 + 扣减」，并用返回的 fileId 查询文件。
+     * 修复了原来误把「分享ID」当「文件ID」导致下载错文件/404 的问题。
      */
     @GetMapping("/download/{shareToken}")
     public ResponseEntity<InputStreamResource> downloadFileByShare(
             @PathVariable String shareToken,
             @RequestHeader(value = "X-Forwarded-For", required = false) String clientIp) {
         try {
-            // 检查分享链接是否有效
-            if (!fileShareService.isShareValid(shareToken)) {
-                log.warn("分享链接无效或已过期，Token: {}", shareToken);
-                return ResponseEntity.status(HttpStatus.GONE)
-                        .body(null);
-            }
-
-            // 获取分享信息
-            FileShareResponse shareInfo = fileShareService.getShareInfo(shareToken);
+            FileShareResponse shareInfo = fileShareService.consumeShare(shareToken);
             if (shareInfo == null) {
-                return ResponseEntity.notFound().build();
+                log.warn("分享链接无效/已过期/次数用尽，Token: {}", shareToken);
+                return ResponseEntity.status(HttpStatus.GONE).build();
             }
 
-            // 获取文件信息
-            FileInfo fileInfo = fileInfoService.getFileDetail(shareInfo.getId());
+            FileInfo fileInfo = fileInfoService.getFileDetail(shareInfo.getFileId());
             if (fileInfo == null) {
                 return ResponseEntity.notFound().build();
             }
-
-            // 检查文件是否存在
-            File file = new File(fileInfo.getFilePath());
-            if (!file.exists() || !file.isFile()) {
+            Path filePath = Paths.get(fileInfo.getFilePath()).normalize();
+            if (!Files.isRegularFile(filePath)) {
                 log.error("物理文件不存在，FilePath: {}", fileInfo.getFilePath());
                 return ResponseEntity.notFound().build();
             }
 
-            // 增加下载计数
-            fileShareService.incrementDownloadCount(shareToken);
-
-            // 打开文件流
-            FileInputStream fileInputStream = new FileInputStream(file);
-            InputStreamResource resource = new InputStreamResource(fileInputStream);
-
-            log.info("分享文件下载，Token: {}, FileName: {}, ClientIP: {}", 
+            InputStreamResource resource = new InputStreamResource(Files.newInputStream(filePath));
+            log.info("分享文件下载，Token: {}, FileName: {}, ClientIP: {}",
                     shareToken, fileInfo.getFileName(), clientIp);
-
-            // 返回文件流
             return ResponseEntity.ok()
-                    .header(HttpHeaders.CONTENT_DISPOSITION, "attachment; filename=\"" + fileInfo.getFileName() + "\"")
-                    .header(HttpHeaders.CONTENT_TYPE, fileInfo.getMimeType())
-                    .header(HttpHeaders.CONTENT_LENGTH, String.valueOf(fileInfo.getFileSize()))
+                    .header(HttpHeaders.CONTENT_DISPOSITION, FileController.contentDisposition(fileInfo.getFileName()))
+                    .contentType(FileController.contentType(fileInfo.getMimeType()))
+                    .contentLength(fileInfo.getFileSize() == null ? Files.size(filePath) : fileInfo.getFileSize())
                     .body(resource);
         } catch (IOException e) {
             log.error("流式传输文件异常", e);
@@ -163,41 +121,34 @@ public class ShareController {
         }
     }
 
-    /**
-     * 获取用户的分享列表
-     * @param authentication 认证信息
-     * @return 分享列表
-     */
+    /** 分页获取用户分享列表（原来返回 null 的 TODO） */
     @GetMapping
-    public ResponseEntity<ApiResponse<Object>> getUserShares(Authentication authentication) {
+    public ResponseEntity<ApiResponse<List<FileShareResponse>>> getUserShares(
+            @RequestParam(defaultValue = "1") int page,
+            @RequestParam(defaultValue = "50") int size,
+            Authentication authentication) {
         try {
-            String userId = (String) authentication.getPrincipal();
-            // TODO: 实现获取用户分享列表的逻辑
-            return ResponseEntity.ok(ApiResponse.success("获取分享列表成功", null));
+            Long userId = SecurityUtils.getUserId(authentication);
+            List<FileShareResponse> shares = fileShareService.getUserShares(userId, page, size);
+            return ResponseEntity.ok(ApiResponse.success("获取分享列表成功", shares));
         } catch (Exception e) {
             log.error("获取分享列表异常", e);
             return ResponseEntity.internalServerError().body(ApiResponse.error());
         }
     }
 
-    /**
-     * 删除分享链接
-     * @param shareId 分享ID
-     * @param authentication 认证信息
-     * @return 删除结果
-     */
     @DeleteMapping("/{shareId}")
     public ResponseEntity<ApiResponse<Object>> deleteShare(
             @PathVariable Long shareId,
             Authentication authentication) {
         try {
-            String userId = (String) authentication.getPrincipal();
-            fileShareService.deleteShare(shareId, Long.parseLong(userId));
-
+            Long userId = SecurityUtils.getUserId(authentication);
+            fileShareService.deleteShare(shareId, userId);
             log.info("分享链接已删除，ShareId: {}", shareId);
             return ResponseEntity.ok(ApiResponse.success("分享链接已删除"));
         } catch (BusinessException e) {
-            return ResponseEntity.badRequest().body(ApiResponse.fail(e.getMessage()));
+            return ResponseEntity.status(e.getCode() == 403 ? HttpStatus.FORBIDDEN : HttpStatus.BAD_REQUEST)
+                    .body(ApiResponse.fail(e.getCode(), e.getMessage()));
         } catch (Exception e) {
             log.error("删除分享链接异常", e);
             return ResponseEntity.internalServerError().body(ApiResponse.error());

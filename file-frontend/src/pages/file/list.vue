@@ -10,7 +10,7 @@
       <view class="upload-card" @click="chooseFile">
         <text class="upload-icon">📤</text>
         <text class="upload-text">点击选择文件上传</text>
-        <text class="upload-tip">支持任何类型文件，单个最大 2GB</text>
+        <text class="upload-tip">支持常见文件类型（可执行/脚本类禁止），单个最大 2GB</text>
       </view>
 
       <!-- 上传进度 -->
@@ -34,10 +34,16 @@
 
       <view v-if="fileList.length === 0" class="empty-state">
         <text class="empty-icon">📭</text>
-        <text class="empty-text">暂无文件</text>
+        <text class="empty-text">{{ listLoading ? '加载中...' : '暂无文件' }}</text>
+      </view>
+
+      <!-- 分页：触底加载更多 -->
+      <view v-if="fileList.length > 0" class="load-more" @click="loadMore">
+        <text>{{ hasMore ? '点击加载更多' : `已加载全部 ${fileList.length} 个文件` }}</text>
       </view>
 
       <view v-for="file in fileList" :key="file.id" class="file-item">
+        <!-- 文件列表项 -->
         <view class="file-info">
           <text class="file-name">{{ file.fileName }}</text>
           <view class="file-meta">
@@ -47,12 +53,9 @@
         </view>
 
         <view class="file-actions">
-          <button class="action-btn share-btn" @click="handleShare(file.id)">
-            分享
-          </button>
-          <button class="action-btn delete-btn" @click="handleDelete(file.id)">
-            删除
-          </button>
+          <button class="action-btn download-btn" @click="handleDownload(file)">下载</button>
+          <button class="action-btn share-btn" @click="handleShare(file.id)">分享</button>
+          <button class="action-btn delete-btn" @click="handleDelete(file.id)">删除</button>
         </view>
       </view>
     </view>
@@ -60,148 +63,138 @@
 </template>
 
 <script setup lang="ts">
-import { ref, onMounted } from 'vue'
-import { uploadFile, deleteFile, getFileList } from '@/api/index'
+import { ref } from 'vue'
+import { onShow, onHide } from '@dcloudio/uni-app'
+import { uploadFileByPath, downloadOwnFile, deleteFile, getFileList } from '@/api/index'
+import type { FileInfo } from '@/api/index'
 import dayjs from 'dayjs'
 
-// 文件列表
-const fileList = ref<any[]>([])
+const PAGE_SIZE = 20
+const fileList = ref<FileInfo[]>([])
 const uploadProgress = ref(0)
 const listLoading = ref(false)
+const currentPage = ref(1)
+const hasMore = ref(true)
 
-/**
- * 选择文件
- */
+/** 选择文件：使用 uni.chooseFile 拿到本地路径，交给原生上传通道 */
 const chooseFile = () => {
-  // uni-app 文件选择
   uni.chooseFile({
     count: 1,
     type: 'file',
-    success: (res) => {
-      if (res.tempFilePaths && res.tempFilePaths.length > 0) {
-        const filePath = res.tempFilePaths[0]
+    success: res => {
+      const filePath = res.tempFilePaths?.[0]
+      if (filePath) {
         handleFileUpload(filePath)
       }
     }
   })
 }
 
-/**
- * 处理文件上传
- */
+/** 真实上传：直接上传本地文件路径，并展示真实进度 */
 const handleFileUpload = async (filePath: string) => {
   try {
     uploadProgress.value = 0
-
-    // 读取文件
-    uni.getFileInfo({
-      filePath,
-      success: async (fileInfo) => {
-        // 创建 File 对象（实际项目中需要处理）
-        const file = new File([filePath], filePath, {})
-
-        // 上传文件
-        const response = await uploadFile(file)
-
-        if (response.code === 0) {
-          uploadProgress.value = 100
-          uni.showToast({ title: '上传成功', icon: 'success' })
-
-          // 清除进度
-          setTimeout(() => {
-            uploadProgress.value = 0
-          }, 1000)
-
-          // 添加到列表
-          fileList.value.unshift(response.data)
-        }
-      }
+    const response = await uploadFileByPath(filePath, percent => {
+      uploadProgress.value = percent
     })
+    uploadProgress.value = 100
+    uni.showToast({ title: '上传成功', icon: 'success' })
+    fileList.value.unshift(response.data)
+    // 缓存失效后重新计数
+    currentPage.value = 1
   } catch (error: any) {
-    uni.showToast({ title: error.message || '上传失败', icon: 'error' })
-    uploadProgress.value = 0
+    uni.showToast({ title: error?.message || '上传失败', icon: 'none' })
+  } finally {
+    setTimeout(() => { uploadProgress.value = 0 }, 800)
   }
 }
 
-/**
- * 处理分享
- */
-const handleShare = (fileId: number) => {
-  uni.navigateTo({
-    url: `/pages/share/share?fileId=${fileId}`
-  })
+/** 下载自己的文件 */
+const handleDownload = async (file: FileInfo) => {
+  uni.showLoading({ title: '下载中...' })
+  try {
+    const tempPath = await downloadOwnFile(file.id)
+    uni.hideLoading()
+    // App 端可保存到相册/打开文件；H5 端下载到临时路径后提示
+    // #ifdef APP-PLUS
+    plus.runtime.openFile(tempPath)
+    // #endif
+    // #ifndef APP-PLUS
+    uni.showToast({ title: '已开始下载', icon: 'success' })
+    // #endif
+  } catch (error: any) {
+    uni.hideLoading()
+    uni.showToast({ title: error?.message || '下载失败', icon: 'none' })
+  }
 }
 
-/**
- * 处理删除
- */
+const handleShare = (fileId: number) => {
+  uni.navigateTo({ url: `/pages/share/share?fileId=${fileId}` })
+}
+
 const handleDelete = async (fileId: number) => {
   uni.showModal({
     title: '确认删除',
-    content: '删除文件后将无法恢复，是否继续？',
+    content: '删除后不可恢复，且相关分享链接会立即失效。是否继续？',
     confirmText: '删除',
     cancelText: '取消',
-    success: async (res) => {
-      if (res.confirm) {
-        try {
-          const response = await deleteFile(fileId)
-
-          if (response.code === 0) {
-            uni.showToast({ title: '删除成功', icon: 'success' })
-            fileList.value = fileList.value.filter(f => f.id !== fileId)
-          }
-        } catch (error: any) {
-          uni.showToast({ title: error.message || '删除失败', icon: 'error' })
-        }
+    success: async res => {
+      if (!res.confirm) return
+      try {
+        await deleteFile(fileId)
+        uni.showToast({ title: '删除成功', icon: 'success' })
+        fileList.value = fileList.value.filter(f => f.id !== fileId)
+      } catch (error: any) {
+        uni.showToast({ title: error?.message || '删除失败', icon: 'none' })
       }
     }
   })
 }
 
-/**
- * 格式化文件大小
- */
-const formatFileSize = (bytes: number) => {
-  if (bytes === 0) return '0 B'
-  const k = 1024
-  const sizes = ['B', 'KB', 'MB', 'GB']
-  const i = Math.floor(Math.log(bytes) / Math.log(k))
-  return (bytes / Math.pow(k, i)).toFixed(2) + ' ' + sizes[i]
-}
-
-/**
- * 格式化时间
- */
-const formatTime = (timestamp: string) => {
-  return dayjs(timestamp).format('YYYY-MM-DD HH:mm:ss')
-}
-
-/**
- * 组件挂载
- */
-onMounted(() => {
-  loadFileList()
-})
-
-/**
- * 加载文件列表
- */
-const loadFileList = async () => {
+/** 分页加载；已到最后一页则不再请求 */
+const loadFileList = async (reset = false) => {
+  if (listLoading.value) return
+  if (!reset && !hasMore.value) return
+  if (reset) {
+    currentPage.value = 1
+    hasMore.value = true
+  }
   try {
     listLoading.value = true
-    const response = await getFileList()
-    
-    if (response.code === 0) {
-      fileList.value = response.data || []
-    } else {
-      uni.showToast({ title: response.message || '获取文件列表失败', icon: 'error' })
-    }
-  } catch (error: any) {
-    uni.showToast({ title: error.message || '获取文件列表失败', icon: 'error' })
+    const response = await getFileList(currentPage.value, PAGE_SIZE)
+    const list = response.data || []
+    fileList.value = reset ? list : fileList.value.concat(list)
+    hasMore.value = list.length === PAGE_SIZE
+    if (hasMore.value) currentPage.value++
+  } catch {
+    // 错误提示由 http 拦截器统一处理
   } finally {
     listLoading.value = false
   }
 }
+
+const loadMore = () => loadFileList(false)
+
+const formatFileSize = (bytes: number) => {
+  if (!bytes) return '0 B'
+  const k = 1024
+  const sizes = ['B', 'KB', 'MB', 'GB', 'TB']
+  const i = Math.min(Math.floor(Math.log(bytes) / Math.log(k)), sizes.length - 1)
+  return (bytes / Math.pow(k, i)).toFixed(2) + ' ' + sizes[i]
+}
+
+const formatTime = (value: string) => {
+  return value ? dayjs(value).format('YYYY-MM-DD HH:mm:ss') : '--'
+}
+
+let progressTimer: ReturnType<typeof setTimeout> | null = null
+onShow(() => {
+  // 从分享页返回时刷新，保证列表与服务端一致
+  loadFileList(true)
+})
+onHide(() => {
+  if (progressTimer) clearTimeout(progressTimer)
+})
 </script>
 
 <style scoped>
@@ -382,6 +375,11 @@ const loadFileList = async () => {
   transform: scale(0.95);
 }
 
+.download-btn {
+  background-color: #51cf66;
+  color: white;
+}
+
 .share-btn {
   background-color: #667eea;
   color: white;
@@ -390,5 +388,12 @@ const loadFileList = async () => {
 .delete-btn {
   background-color: #ff6b6b;
   color: white;
+}
+
+.load-more {
+  text-align: center;
+  padding: 16px;
+  color: #667eea;
+  font-size: 13px;
 }
 </style>

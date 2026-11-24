@@ -54,12 +54,7 @@
             <artifactId>jjwt-jackson</artifactId>
         </dependency>
 
-        <!-- MySQL Driver -->
-        <dependency>
-            <groupId>com.mysql</groupId>
-            <artifactId>mysql-connector-java</artifactId>
-            <version>8.0.33</version>
-        </dependency>
+        <!-- MySQL 驱动由父 POM 的 mysql-connector-j 统一提供，此处不再重复声明 -->
 
         <!-- Redis -->
         <dependency>

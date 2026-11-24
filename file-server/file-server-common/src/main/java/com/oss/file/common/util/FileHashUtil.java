@@ -3,8 +3,7 @@ package com.oss.file.common.util;
 import java.io.File;
 import java.io.FileInputStream;
 import java.io.IOException;
-import java.nio.file.Files;
-import java.nio.file.Path;
+import java.io.InputStream;
 import java.security.MessageDigest;
 import java.security.NoSuchAlgorithmException;
 
@@ -56,9 +55,27 @@ public class FileHashUtil {
     }
 
     /**
-     * 计算输入流的SHA-256哈希值
+     * 计算输入流的 SHA-256 哈希值（流式，适合大文件，不会把文件整体载入内存）
+     * 注意：调用方负责关闭传入的流。
+     *
+     * @param inputStream 输入流
+     * @return SHA-256 哈希值（十六进制字符串）
+     */
+    public static String calculateSHA256(InputStream inputStream) throws IOException, NoSuchAlgorithmException {
+        MessageDigest digest = MessageDigest.getInstance("SHA-256");
+        byte[] buffer = new byte[BUFFER_SIZE];
+        int bytesRead;
+        while ((bytesRead = inputStream.read(buffer)) != -1) {
+            digest.update(buffer, 0, bytesRead);
+        }
+        return bytesToHex(digest.digest());
+    }
+
+    /**
+     * 计算字节数组的 SHA-256（仅用于小数据，请勿用于大文件）
+     *
      * @param data 字节数组
-     * @return SHA-256哈希值（十六进制字符串）
+     * @return SHA-256 哈希值（十六进制字符串）
      */
     public static String calculateSHA256(byte[] data) throws NoSuchAlgorithmException {
         MessageDigest digest = MessageDigest.getInstance("SHA-256");

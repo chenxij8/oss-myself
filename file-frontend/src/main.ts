@@ -1,4 +1,5 @@
 import { createSSRApp } from 'vue' // 必须用 createSSRApp
+import './uni.promisify.adaptor'
 import App from './App.vue'
 import { createPinia } from 'pinia'
 import persistedstate from 'pinia-plugin-persistedstate'

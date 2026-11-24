@@ -74,13 +74,8 @@
       <view class="form-group">
         <view class="form-label-row">
           <text class="form-label">下载次数限制</text>
-          <text class="form-check">
-            <input
-              type="checkbox"
-              :checked="enableDownloadLimit"
-              @change="enableDownloadLimit = !enableDownloadLimit"
-            />
-            启用
+          <text class="form-check" @click="enableDownloadLimit = !enableDownloadLimit">
+            {{ enableDownloadLimit ? '☑ 启用' : '☐ 启用' }}
           </text>
         </view>
         
@@ -163,8 +158,11 @@
 </template>
 
 <script setup lang="ts">
-import { ref, onMounted } from 'vue'
-import { createShare, getFileList, getFileInfo } from '@/api/index'
+import { ref } from 'vue'
+import { onLoad } from '@dcloudio/uni-app'
+import { createShare, getFileList } from '@/api/index'
+import type { FileInfo, FileShareResponse } from '@/api/index'
+import { API_BASE_URL } from '@/api/http'
 import dayjs from 'dayjs'
 
 // 表单数据
@@ -174,7 +172,7 @@ const loading = ref(false)
 
 // 文件列表弹窗
 const showFileModal = ref(false)
-const fileList = ref<any[]>([])
+const fileList = ref<FileInfo[]>([])
 const fileListLoading = ref(false)
 
 /**
@@ -206,19 +204,16 @@ const chooseFile = () => {
 /**
  * 加载文件列表
  */
-const loadFileList = async () => {
+const loadFileList = async (openModal = true) => {
   try {
     fileListLoading.value = true
-    const response = await getFileList()
-    
+    const response = await getFileList(1, 200)
     if (response.code === 0) {
       fileList.value = response.data || []
-      showFileModal.value = true
-    } else {
-      uni.showToast({ title: response.message || '获取文件列表失败', icon: 'error' })
+      if (openModal) showFileModal.value = true
     }
-  } catch (error: any) {
-    uni.showToast({ title: error.message || '获取文件列表失败', icon: 'error' })
+  } catch {
+    // 错误提示由 http 拦截器统一处理
   } finally {
     fileListLoading.value = false
   }
@@ -227,11 +222,21 @@ const loadFileList = async () => {
 /**
  * 选择文件
  */
-const selectFile = (file: any) => {
+const selectFile = (file: FileInfo) => {
   selectedFileId.value = file.id
   selectedFileName.value = file.fileName
   showFileModal.value = false
 }
+
+/** 从文件列表页跳转过来时，自动带 fileId */
+onLoad((options) => {
+  const fileId = Number(options?.fileId)
+  if (fileId) {
+    selectedFileId.value = fileId
+    selectedFileName.value = `文件 #${fileId}`
+  }
+  loadFileList(false)
+})
 
 // 过期时间选项
 const expireOptions = [
@@ -266,10 +271,10 @@ const generateShare = async () => {
   try {
     loading.value = true
 
-    // 计算过期时间
+    // LocalDateTime 要求 ISO-8601 格式，空格分隔会导致后端反序列化失败（400）
     let expireAt: string | undefined = undefined
     if (expireTime.value !== null) {
-      expireAt = dayjs().add(expireTime.value, 'hour').format('YYYY-MM-DD HH:mm:ss')
+      expireAt = dayjs().add(expireTime.value, 'hour').format('YYYY-MM-DDTHH:mm:ss')
     }
 
     // 调用 API
@@ -281,9 +286,9 @@ const generateShare = async () => {
 
     if (response.code === 0) {
       // 保存分享信息
-      const shareData = response.data
+      const shareData: FileShareResponse = response.data
       shareToken.value = shareData.shareToken
-      shareUrl.value = shareData.shareUrl
+      shareUrl.value = buildFullShareUrl(shareData.shareToken)
       shareCreateTime.value = shareData.createTime
 
       // 设置有效期信息
@@ -325,11 +330,19 @@ const copyToClipboard = (text: string) => {
 }
 
 /**
- * 复制完整分享URL
+ * 构造带协议与域名的完整下载直链。
+ * H5 使用当前站点 origin；App/小程序由 VITE_API_BASE_URL 提供。
  */
+const buildFullShareUrl = (token: string) => {
+  const base = API_BASE_URL.startsWith('http')
+    ? API_BASE_URL
+    : (typeof window !== 'undefined' ? window.location.origin : '') + API_BASE_URL
+  return `${base}/shares/download/${token}`
+}
+
+/** 复制完整分享URL（token 只在 path 中出现一次） */
 const copyShareUrl = () => {
-  const fullUrl = `${shareUrl.value}?token=${shareToken.value}`
-  copyToClipboard(fullUrl)
+  copyToClipboard(shareUrl.value)
 }
 
 /**

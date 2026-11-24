@@ -20,8 +20,10 @@ import org.springframework.security.web.authentication.UsernamePasswordAuthentic
 import org.springframework.web.cors.CorsConfiguration;
 import org.springframework.web.cors.CorsConfigurationSource;
 import org.springframework.web.cors.UrlBasedCorsConfigurationSource;
+import org.springframework.beans.factory.annotation.Value;
 
 import java.util.Arrays;
+import java.util.List;
 
 @Configuration
 @EnableWebSecurity
@@ -34,6 +36,10 @@ public class SecurityConfig {
 
     private final JwtAuthenticationEntryPoint jwtAuthenticationEntryPoint;
     private final JwtAuthenticationFilter jwtAuthenticationFilter;
+
+    /** 允许跨域的来源，生产环境应通过配置显式指定，避免全放行 */
+    @Value("${app.cors.allowed-origins:*}")
+    private String[] allowedOrigins;
 
     public SecurityConfig(JwtAuthenticationEntryPoint jwtAuthenticationEntryPoint,
                           JwtAuthenticationFilter jwtAuthenticationFilter) {
@@ -77,7 +83,8 @@ public class SecurityConfig {
                 .authorizeHttpRequests(authz -> authz
                         // 公开接口
                         .requestMatchers("/api/auth/login", "/api/auth/register").permitAll()
-                        .requestMatchers("/api/shares/downloads/**", "/api/shares/info/**").permitAll()
+                        // 注意：Controller 实际映射为 /download/{token}（单数），必须与此处一致
+                        .requestMatchers("/api/shares/download/**", "/api/shares/info/**").permitAll()
 
                         // 文件管理接口
                         .requestMatchers(HttpMethod.POST, "/api/files/upload", "/api/files/check").authenticated()
@@ -105,7 +112,9 @@ public class SecurityConfig {
     @Bean
     public CorsConfigurationSource corsConfigurationSource() {
         CorsConfiguration configuration = new CorsConfiguration();
-        configuration.setAllowedOriginPatterns(Arrays.asList("*"));
+        // 默认仍允许所有来源以保证本地开发可用，生产通过 app.cors.allowed-origins 收紧
+        List<String> origins = Arrays.asList(allowedOrigins);
+        configuration.setAllowedOriginPatterns(origins);
         configuration.setAllowedMethods(Arrays.asList("GET", "POST", "PUT", "DELETE", "OPTIONS", "PATCH"));
         configuration.setAllowedHeaders(Arrays.asList("*"));
         configuration.setAllowCredentials(true);

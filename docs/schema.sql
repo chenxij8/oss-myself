@@ -22,6 +22,9 @@ CREATE TABLE IF NOT EXISTS `sys_user` (
 ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci COMMENT='系统用户表';
 
 -- 文件信息表
+-- 秒传按「用户 + 哈希」去重：不同用户上传相同内容各自独立存储，避免跨用户归属混乱。
+-- 唯一键不含 is_deleted：同一用户删除后重传会复用/复活原记录，避免二次删除时
+-- 出现两条 is_deleted=1 导致唯一键冲突。
 CREATE TABLE IF NOT EXISTS `file_info` (
   `id` bigint NOT NULL AUTO_INCREMENT COMMENT '文件ID',
   `file_hash` varchar(128) NOT NULL COMMENT '文件SHA-256哈希值',
@@ -34,10 +37,8 @@ CREATE TABLE IF NOT EXISTS `file_info` (
   `is_deleted` tinyint NOT NULL DEFAULT 0 COMMENT '逻辑删除: 0-未删除, 1-已删除',
   `delete_time` datetime COMMENT '删除时间',
   PRIMARY KEY (`id`),
-  UNIQUE KEY `uk_file_hash` (`file_hash`),
-  KEY `idx_upload_user_id` (`upload_user_id`),
-  KEY `idx_upload_time` (`upload_time`),
-  KEY `idx_is_deleted` (`is_deleted`)
+  UNIQUE KEY `uk_user_hash` (`upload_user_id`, `file_hash`),
+  KEY `idx_upload_time` (`upload_time`)
 ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci COMMENT='文件信息表';
 
 -- 文件分享表
@@ -55,9 +56,8 @@ CREATE TABLE IF NOT EXISTS `file_share` (
   PRIMARY KEY (`id`),
   UNIQUE KEY `uk_share_token` (`share_token`),
   KEY `idx_file_id` (`file_id`),
-  KEY `idx_share_user_id` (`share_user_id`),
-  KEY `idx_expire_time` (`expire_time`),
-  KEY `idx_is_active` (`is_active`),
+  KEY `idx_share_user_time` (`share_user_id`, `create_time`),
+  KEY `idx_share_validity` (`is_active`, `expire_time`),
   CONSTRAINT `fk_file_id` FOREIGN KEY (`file_id`) REFERENCES `file_info` (`id`),
   CONSTRAINT `fk_share_user_id` FOREIGN KEY (`share_user_id`) REFERENCES `sys_user` (`id`)
 ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci COMMENT='文件分享表';
@@ -75,13 +75,12 @@ CREATE TABLE IF NOT EXISTS `sys_log` (
   `user_agent` varchar(512) COMMENT '请求代理',
   `create_time` datetime NOT NULL DEFAULT CURRENT_TIMESTAMP COMMENT '创建时间',
   PRIMARY KEY (`id`),
-  KEY `idx_user_id` (`user_id`),
+  KEY `idx_user_time` (`user_id`, `create_time`),
   KEY `idx_operation` (`operation`),
-  KEY `idx_create_time` (`create_time`),
   KEY `idx_status` (`status`)
 ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci COMMENT='系统日志表';
 
--- 限流配置表
+-- 限流配置表（预留）
 CREATE TABLE IF NOT EXISTS `rate_limit` (
   `id` bigint NOT NULL AUTO_INCREMENT COMMENT '限流ID',
   `share_token` varchar(64) NOT NULL COMMENT '分享令牌',
@@ -92,12 +91,12 @@ CREATE TABLE IF NOT EXISTS `rate_limit` (
   UNIQUE KEY `uk_share_token_reset` (`share_token`, `reset_time`)
 ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci COMMENT='限流配置表';
 
--- 初始化管理员账户
-INSERT INTO `sys_user` (`username`, `password`, `email`, `role`) 
-VALUES ('admin', '$2a$10$N9qo8uLOickgx2ZMRZoMyeIjZAgcg7b3XeKeUxWdeS86E36gBUono', 'admin@example.com', 'ADMIN')
-ON DUPLICATE KEY UPDATE `id` = `id`;
 
--- 创建索引以优化查询
-CREATE INDEX idx_file_info_hash_time ON file_info(file_hash, upload_time);
-CREATE INDEX idx_file_share_token_active ON file_share(share_token, is_active);
-CREATE INDEX idx_sys_log_user_time ON sys_log(user_id, create_time);
+
+-- ---------------------------------------------------------------------------
+-- 已有库迁移（把旧去重键切换为用户维度，避免跨用户误命中与二次删除冲突）：
+-- ALTER TABLE `file_info` DROP INDEX `uk_file_hash`;
+-- ALTER TABLE `file_info` DROP INDEX `uk_user_hash_deleted`;
+-- ALTER TABLE `file_info` ADD UNIQUE KEY `uk_user_hash` (`upload_user_id`, `file_hash`);
+-- 注意：执行前请先清理同一用户同一哈希的重复记录，仅保留 is_deleted=0 的一条。
+-- ---------------------------------------------------------------------------

@@ -1,67 +1,78 @@
 spring:
   application:
     name: file-server
-  
-  # 数据库配置
+
+  # 数据库配置：生产环境建议用环境变量 SPRING_DATASOURCE_PASSWORD 覆盖
   datasource:
     driver-class-name: com.mysql.cj.jdbc.Driver
-    url: jdbc:mysql://localhost:3306/file_server?useUnicode=true&characterEncoding=utf-8&useSSL=false&serverTimezone=Asia/Shanghai
-    username: root
-    password: hezi
+    url: ${SPRING_DATASOURCE_URL:jdbc:mysql://localhost:3306/file_server?useUnicode=true&characterEncoding=utf-8&useSSL=false&serverTimezone=Asia/Shanghai}
+    username: ${SPRING_DATASOURCE_USERNAME:root}
+    password: ${SPRING_DATASOURCE_PASSWORD:hezi}
     hikari:
       maximum-pool-size: 10
       minimum-idle: 5
       connection-timeout: 30000
       idle-timeout: 600000
       max-lifetime: 1800000
-  
-  # Redis 配置
+
+  # Redis 配置（ Lettuce 为默认客户端，因此使用 lettuce.pool 而非 jedis.pool）
   redis:
-    host: localhost
-    port: 6379
-    password:
+    host: ${SPRING_REDIS_HOST:localhost}
+    port: ${SPRING_REDIS_PORT:6379}
+    password: ${SPRING_REDIS_PASSWORD:}
     database: 0
-    timeout: 10000ms
-    jedis:
+    timeout: 5000ms
+    lettuce:
       pool:
         max-active: 8
         max-idle: 8
         min-idle: 0
-        max-wait: -1ms
-  
-  # JSON 序列化配置
+        max-wait: 3000ms
+
+  # JSON 序列化配置（date-format 是合法键；LocalDateTime 使用 ISO-8601）
   jackson:
     default-property-inclusion: non_null
-    datetime-format: yyyy-MM-dd HH:mm:ss
+    date-format: yyyy-MM-dd HH:mm:ss
     time-zone: Asia/Shanghai
+
+  servlet:
+    multipart:
+      max-file-size: 2048MB
+      max-request-size: 2048MB
 
 # MyBatis-Plus 配置
 mybatis-plus:
   mapper-locations: classpath*:/mapper/**/*.xml
   type-aliases-package: com.oss.file.system.entity
   configuration:
-    # 开启下划线转驼峰
     map-underscore-to-camel-case: true
-    # 打印SQL
-    log-impl: org.apache.ibatis.logging.stdout.StdOutImpl
+    # 生产环境不要打印 SQL：StdOutImpl 会带来大量同步 I/O，且可能输出敏感字段
+    log-impl: org.apache.ibatis.logging.nologging.NoLoggingImpl
   global-config:
-    # 逻辑删除
     db-config:
       logic-delete-field: isDeleted
       logic-delete-value: 1
       logic-not-delete-value: 0
 
-# JWT 配置
+# JWT 配置（生产环境必须通过环境变量设置强随机密钥）
 jwt:
-  secret: FileServerSecurityKeyForJWTTokenGenerationAndValidation2024021201
-  expiration: 86400000  # 24小时
+  secret: ${JWT_SECRET:FileServerSecurityKeyForJWTTokenGenerationAndValidation2024021201}
+  expiration: 86400000
 
 # 文件存储配置
 file:
   storage:
-    path: C:/IT  # Windows 路径示例，Linux 改为 /data/file-storage
+    path: ${FILE_STORAGE_PATH:C:/IT}
 
-# 服务器配置
+# 应用自定义配置
+app:
+  # 初始管理员密码：仅首次创建时生效，生产环境请覆盖
+  admin:
+    initial-password: ${APP_ADMIN_INITIAL_PASSWORD:admin123}
+  # 允许的跨域来源，多个用逗号分隔；生产环境务必显式配置
+  cors:
+    allowed-origins: ${APP_CORS_ORIGINS:*}
+
 server:
   port: 8080
   servlet:
@@ -69,15 +80,16 @@ server:
   compression:
     enabled: true
     min-response-size: 1024
+    mime-types: application/json,application/xml,text/html,text/xml,text/plain,text/css,application/javascript
 
-# 日志配置
+# 日志配置（Spring Boot 3 使用 logging.file.name）
 logging:
   level:
     root: INFO
-    com.oss.file: DEBUG
+    com.oss.file: INFO
   pattern:
     console: "%d{yyyy-MM-dd HH:mm:ss.SSS} [%thread] %-5level %logger{36} - %msg%n"
-    file: "%d{yyyy-MM-dd HH:mm:ss.SSS} [%thread] %-5level %logger{36} - %msg%n"
-  file: logs/file-server.log
-  file-max-size: 100MB
-  max-history: 30
+  file:
+    name: logs/file-server.log
+    max-size: 100MB
+    max-history: 30

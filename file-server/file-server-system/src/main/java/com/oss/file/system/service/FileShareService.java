@@ -4,6 +4,8 @@ import com.baomidou.mybatisplus.extension.service.IService;
 import com.oss.file.system.dto.FileShareResponse;
 import com.oss.file.system.entity.FileShare;
 
+import java.util.List;
+
 /**
  * 文件分享业务接口
  */
@@ -11,40 +13,37 @@ public interface FileShareService extends IService<FileShare> {
 
     /**
      * 创建分享链接
-     * @param fileId 文件ID
-     * @param userId 分享发起者ID
-     * @param expireTime 过期时间（毫秒时间戳，可为null表示不过期）
-     * @param maxDownloads 最大下载次数（可为null表示无限）
-     * @return 分享信息
      */
     FileShareResponse createShare(Long fileId, Long userId, Long expireTime, Integer maxDownloads);
 
     /**
      * 获取分享信息
-     * @param shareToken 分享令牌
-     * @return 分享信息
      */
     FileShareResponse getShareInfo(String shareToken);
 
     /**
      * 检查分享链接是否有效
-     * @param shareToken 分享令牌
-     * @return 是否有效
      */
     boolean isShareValid(String shareToken);
 
     /**
-     * 增加分享的下载计数
-     * @param shareToken 分享令牌
-     * @return 是否成功
+     * 增加分享的下载计数（原子操作）
      */
     boolean incrementDownloadCount(String shareToken);
 
     /**
-     * 删除分享链接
-     * @param shareId 分享ID
-     * @param userId 操作用户ID
-     * @return 是否删除成功
+     * 原子校验并扣减下载次数：成功返回含 fileId 的分享信息，失败返回 null。
+     * 校验与扣减合并为一条 UPDATE，避免并发突破下载次数限制。
+     */
+    FileShareResponse consumeShare(String shareToken);
+
+    /**
+     * 分页获取用户的分享列表
+     */
+    List<FileShareResponse> getUserShares(Long userId, int page, int size);
+
+    /**
+     * 删除分享链接（所有者或管理员）
      */
     boolean deleteShare(Long shareId, Long userId);
 }

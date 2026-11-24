@@ -19,6 +19,11 @@ public class FileShareResponse {
     private Long id;
 
     /**
+     * 文件ID（下载时必须用它查询文件，不能使用分享ID）
+     */
+    private Long fileId;
+
+    /**
      * 分享令牌（直链URL中使用）
      */
     private String shareToken;

@@ -20,90 +20,55 @@ import java.util.HashMap;
 import java.util.Map;
 
 /**
- * 全局异常处理器
- * 捕获和处理应用中的各种异常
+ * 全局异常处理：对外不暴露内部异常细节（SQL、路径等只写日志）。
  */
 @RestControllerAdvice
 @Slf4j
 public class GlobalExceptionHandler extends ResponseEntityExceptionHandler {
 
-    /**
-     * 业务异常处理
-     */
     @ExceptionHandler(BusinessException.class)
     public ResponseEntity<ApiResponse<Object>> handleBusinessException(BusinessException ex, WebRequest request) {
         log.warn("捕获业务异常: {}", ex.getMessage());
-        ApiResponse<Object> response = new ApiResponse<>(ex.getCode(), ex.getMessage());
-        return ResponseEntity
-                .status(HttpStatus.BAD_REQUEST)
-                .body(response);
+        HttpStatus status = ex.getCode() == 403 ? HttpStatus.FORBIDDEN : HttpStatus.BAD_REQUEST;
+        return ResponseEntity.status(status).body(new ApiResponse<>(ex.getCode(), ex.getMessage()));
     }
 
-    /**
-     * 重写父类的参数验证异常处理
-     * 注意：这里不再使用 @ExceptionHandler 注解，而是使用 @Override
-     */
     @Override
     protected ResponseEntity<Object> handleMethodArgumentNotValid(
             MethodArgumentNotValidException ex,
             HttpHeaders headers,
             HttpStatusCode status,
             WebRequest request) {
-
-        log.warn("捕获参数验证异常");
-
         Map<String, String> errors = new HashMap<>();
         ex.getBindingResult().getAllErrors().forEach(error -> {
-            String fieldName = ((FieldError) error).getField();
-            String errorMessage = error.getDefaultMessage();
-            errors.put(fieldName, errorMessage);
+            if (error instanceof FieldError) {
+                errors.put(((FieldError) error).getField(), error.getDefaultMessage());
+            } else {
+                errors.put(error.getObjectName(), error.getDefaultMessage());
+            }
         });
-
-        ApiResponse<Map<String, String>> response = new ApiResponse<>(400, "参数验证失败", errors);
-
-        // 注意：返回值类型必须与父类定义的 ResponseEntity<Object> 匹配
-        return ResponseEntity
-                .status(HttpStatus.BAD_REQUEST)
-                .body(response);
+        return ResponseEntity.badRequest().body(new ApiResponse<>(400, "参数验证失败", errors));
     }
 
-    /**
-     * 权限异常处理
-     */
     @ExceptionHandler(AccessDeniedException.class)
     public ResponseEntity<ApiResponse<Object>> handleAccessDeniedException(
             AccessDeniedException ex, WebRequest request) {
-
         log.warn("捕获权限异常: {}", ex.getMessage());
-        ApiResponse<Object> response = ApiResponse.forbidden();
-        return ResponseEntity
-                .status(HttpStatus.FORBIDDEN)
-                .body(response);
+        return ResponseEntity.status(HttpStatus.FORBIDDEN).body(ApiResponse.forbidden());
     }
 
-    /**
-     * 通用异常处理
-     */
     @ExceptionHandler(Exception.class)
     public ResponseEntity<ApiResponse<Object>> handleGlobalException(Exception ex, WebRequest request) {
         log.error("捕获未处理的异常", ex);
-
-        ApiResponse<Object> response = new ApiResponse<>(500, "系统内部错误: " + ex.getMessage());
-        return ResponseEntity
-                .status(HttpStatus.INTERNAL_SERVER_ERROR)
-                .body(response);
+        // 固定文案，不回传 ex.getMessage()，避免泄露内部实现细节
+        return ResponseEntity.internalServerError().body(ApiResponse.error());
     }
 
-    /**
-     * 重新定义父类其他内部异常的返回格式（可选）
-     * 避免父类默认返回空的 Body
-     */
     @Override
     protected ResponseEntity<Object> handleExceptionInternal(
             Exception ex, @Nullable Object body, HttpHeaders headers, HttpStatusCode statusCode, WebRequest request) {
-
         if (body == null) {
-            body = new ApiResponse<>(statusCode.value(), ex.getMessage());
+            body = new ApiResponse<>(statusCode.value(), statusCode.is4xxClientError() ? "请求参数有误" : "系统内部错误");
         }
         return super.handleExceptionInternal(ex, body, headers, statusCode, request);
     }

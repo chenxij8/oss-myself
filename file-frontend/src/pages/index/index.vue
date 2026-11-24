@@ -84,7 +84,7 @@
           </view>
           <view class="info-item">
             <text class="info-label">最后更新</text>
-            <text class="info-value">{{ formaTime(monitorData.timestamp) }}</text>
+            <text class="info-value">{{ formatTime(monitorData.timestamp) }}</text>
           </view>
         </view>
       </view>
@@ -105,8 +105,10 @@
 </template>
 
 <script setup lang="ts">
-import { ref, onMounted, onUnmounted } from 'vue'
+import { ref } from 'vue'
+import { onShow, onHide } from '@dcloudio/uni-app'
 import { getSystemStatus } from '@/api/index'
+import type { SystemMonitorResponse } from '@/api/index'
 import { useUserStore } from '@/stores/user'
 import dayjs from 'dayjs'
 
@@ -114,55 +116,56 @@ import dayjs from 'dayjs'
 const userStore = useUserStore()
 
 // 监控数据
-const monitorData = ref({
-  cpuUsage: 0,
-  memoryUsed: 0,
-  memoryTotal: 0,
-  memoryUsagePercent: 0,
-  diskTotal: 0,
-  diskUsed: 0,
-  diskFree: 0,
-  diskUsagePercent: 0,
-  loadAverage1m: 0,
-  loadAverage5m: 0,
-  loadAverage15m: 0,
-  uptime: 0,
-  timestamp: 0
-})
+const emptyMonitor: SystemMonitorResponse = {
+  cpuUsage: 0, memoryUsed: 0, memoryTotal: 0, memoryUsagePercent: 0,
+  diskTotal: 0, diskUsed: 0, diskFree: 0, diskUsagePercent: 0,
+  loadAverage1m: 0, loadAverage5m: 0, loadAverage15m: 0,
+  uptime: 0, timestamp: 0
+}
+const monitorData = ref<SystemMonitorResponse>({ ...emptyMonitor })
 
 const loading = ref(false)
-let refreshInterval: any = null
+let refreshInterval: ReturnType<typeof setInterval> | null = null
+let fetching = false
 
-/**
- * 获取监控数据
- */
+/** 获取监控数据（进行中标志位防止定时刷新与手动刷新并发） */
 const fetchMonitorData = async () => {
-  // 未登录时不请求数据
-  if (!userStore.isLoggedIn()) {
+  if (!userStore.isLoggedIn() || fetching) {
     return
   }
-  
+  fetching = true
   try {
     loading.value = true
     const response = await getSystemStatus()
-    
-    if (response.code === 0) {
+    if (response.code === 0 && response.data) {
       monitorData.value = response.data
-    } else {
-      uni.showToast({ title: '获取数据失败', icon: 'error' })
     }
-  } catch (error) {
-    console.error('获取监控数据异常:', error)
+  } catch {
+    // 错误提示由 http 拦截器统一处理
   } finally {
     loading.value = false
+    fetching = false
   }
 }
 
-/**
- * 刷新数据
- */
+/** 手动刷新后立即重置定时器，避免与定时任务撞车 */
 const refreshData = () => {
   fetchMonitorData()
+  startPolling()
+}
+
+const startPolling = () => {
+  stopPolling()
+  if (userStore.isLoggedIn()) {
+    refreshInterval = setInterval(fetchMonitorData, 30000)
+  }
+}
+
+const stopPolling = () => {
+  if (refreshInterval !== null) {
+    clearInterval(refreshInterval)
+    refreshInterval = null
+  }
 }
 
 /**
@@ -178,7 +181,8 @@ const formatUptime = (seconds: number) => {
 /**
  * 格式化时间
  */
-const formaTime = (timestamp: number) => {
+const formatTime = (timestamp: number) => {
+  if (!timestamp) return '--'
   return dayjs(timestamp).format('YYYY-MM-DD HH:mm:ss')
 }
 
@@ -190,27 +194,15 @@ const navigateTo = (url: string) => {
 }
 
 /**
- * 组件挂载
+ * 页面生命周期：显示时启动轮询，隐藏时暂停，避免后台页面持续请求。
  */
-onMounted(() => {
-  // 已登录时才获取数据和启动定时刷新
-  if (userStore.isLoggedIn()) {
-    fetchMonitorData()
-    
-    // 每30秒自动刷新一次
-    refreshInterval = setInterval(() => {
-      fetchMonitorData()
-    }, 30000)
-  }
+onShow(() => {
+  fetchMonitorData()
+  startPolling()
 })
 
-/**
- * 组件卸载
- */
-onUnmounted(() => {
-  if (refreshInterval) {
-    clearInterval(refreshInterval)
-  }
+onHide(() => {
+  stopPolling()
 })
 </script>
 

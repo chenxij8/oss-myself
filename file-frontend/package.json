@@ -3,10 +3,11 @@
   "version": "1.0.0",
   "description": "Enterprise File Sharing Management System - Frontend",
   "scripts": {
-    "dev:h5": "$env:UNI_INPUT_DIR='./src'; uni --platform h5",
-    "build:h5": "$env:UNI_INPUT_DIR='./src'; uni build --platform h5",
-    "dev:app": "$env:UNI_INPUT_DIR='./src'; uni --platform app",
-    "build:app": "$env:UNI_INPUT_DIR='./src'; uni build --platform app"
+    "dev:h5": "uni -p h5",
+    "build:h5": "uni build -p h5",
+    "dev:app": "uni -p app",
+    "build:app": "uni build -p app",
+    "type-check": "vue-tsc --noEmit"
   },
   "dependencies": {
     "@dcloudio/uni-app": "3.0.0-alpha-5000720260327001",
